@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import os
+import sys
+
 
 def builtin_echo(args):
     print(" ".join(args))
@@ -13,6 +16,23 @@ BUILTIN_COMMAND_FUNC_MAPPING = {
     "echo": builtin_echo,
     "exit": builtin_exit,
 }
+
+
+def find_command(command):
+    # 相対PATHへの対応
+    if "/" in command:
+        if os.path.exists(command):
+            return command
+        return None
+
+    # 環境変数pathの値を取得し、ループさせる
+    for path_dir in os.environ["PATH"].split(":"):
+        # コマンドのフルパスを生成
+        command_path = os.path.join(path_dir, command)
+        # pathが存在し、ディレクトリでない場合
+        if os.path.exists(command_path) and not os.path.isdir(command_path):
+            return command_path
+    return None
 
 
 def main():
@@ -30,8 +50,15 @@ def main():
             func = BUILTIN_COMMAND_FUNC_MAPPING[command]
             func(args)
         else:
-            # TODO 外部コマンドの実行
-            pass
+            command_path = find_command(command)
+
+            if command_path is None:
+                # コマンドが見つかりませんでした。と標準エラー出力に出力
+                print(f"{command}: command not found", file=sys.stderr)
+                continue
+
+            # TODO 外部コマンドを実行
+            print(command_path)
 
 
 if __name__ == "__main__":
