@@ -57,8 +57,15 @@ def main():
                 print(f"{command}: command not found", file=sys.stderr)
                 continue
 
-            # TODO 外部コマンドを実行
-            print(command_path)
+            # 子プロセスの作成
+            pid = os.fork()
+
+            if pid == 0:
+                # /usr/bin/catであればcatの部分を取り出す
+                command_basename = os.path.basename(command_path)
+                os.execve(command_path, [command_basename] + args, os.environ)
+            else:
+                os.waitpid(pid, 0)
 
 
 if __name__ == "__main__":
