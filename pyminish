@@ -2,6 +2,7 @@
 
 import os
 import sys
+import signal
 
 
 def builtin_echo(args):
@@ -35,7 +36,13 @@ def find_command(command):
     return None
 
 
+def sigint_hander(signum, frame):
+    pass
+
+
 def main():
+    signal.signal(signal.SIGINT, sigint_hander)
+
     while True:
         line = input("> ")
         tokens = line.split()
