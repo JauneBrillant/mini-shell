@@ -37,6 +37,10 @@ def find_command(command):
 
 
 def interpret_line(line):
+    # コメントへの対応
+    if line.strip().startswith("#"):
+        return
+
     tokens = line.split()
 
     if len(tokens) == 0:
