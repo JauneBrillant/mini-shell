@@ -36,6 +36,41 @@ def find_command(command):
     return None
 
 
+def set_stdio(stdin_fd=None, stdout_fd=None):
+    if stdin_fd is not None:
+        os.dup2(stdin_fd, sys.stdin.fileno())
+
+    if stdout_fd is not None:
+        os.dup2(stdout_fd, sys.stdout.fileno())
+
+
+def run_command(tokens, stdin_fd=None, stdout_fd=None):
+    command = tokens[0]
+    args = tokens[1:]
+
+    if command in BUILTIN_COMMAND_FUNC_MAPPING:
+        # 内部コマンド
+        func = BUILTIN_COMMAND_FUNC_MAPPING[command]
+        func(args)
+    else:
+        # 外部コマンド
+        command_path = find_command(command)
+
+        if command_path is None:
+            print(f"{command}: command not found", file=sys.stderr)
+            return
+
+        pid = os.fork()
+
+        if pid == 0:
+            set_stdio(stdin_fd, stdout_fd)
+
+            command_basename = os.path.basename(command_path)
+            os.execve(command_path, [command_basename] + args, os.environ)
+        else:
+            os.waitpid(pid, 0)
+
+
 def interpret_line(line):
     # コメントへの対応
     if line.strip().startswith("#"):
@@ -46,29 +81,32 @@ def interpret_line(line):
     if len(tokens) == 0:
         return
 
-    command = tokens[0]
-    args = tokens[1:]
+    redirection_count = tokens.count(">")
+    pipe_count = tokens.count("|")
 
-    if command in BUILTIN_COMMAND_FUNC_MAPPING:
-        func = BUILTIN_COMMAND_FUNC_MAPPING[command]
-        func(args)
+    if redirection_count + pipe_count >= 2:
+        print("More than 2 redirections or pipes are not supported", file=sys.stderr)
+        return
+
+    if redirection_count == 1:
+        redirection_index = tokens.index(">")
+        command_and_args = tokens[:redirection_index]
+        stdout_file_name = tokens[redirection_index + 1]
+
+        stdout_file = open(stdout_file_name, "w")
+        stdout_fd = stdout_file.fileno()
+
+        run_command(command_and_args, stdout_fd=stdout_fd)
+
+        os.close(stdout_fd)
+
+    elif pipe_count == 1:
+        # TODO パイプを実装
+        pass
     else:
-        command_path = find_command(command)
+        run_command(tokens)
 
-        if command_path is None:
-            # コマンドが見つかりませんでした。と標準エラー出力に出力
-            print(f"{command}: command not found", file=sys.stderr)
-            return
-
-        # 子プロセスの作成
-        pid = os.fork()
-
-        if pid == 0:
-            # /usr/bin/catであればcatの部分を取り出す
-            command_basename = os.path.basename(command_path)
-            os.execve(command_path, [command_basename] + args, os.environ)
-        else:
-            os.waitpid(pid, 0)
+    run_command(tokens)
 
 
 def sigint_hander(signum, frame):
