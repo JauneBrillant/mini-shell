@@ -36,43 +36,60 @@ def find_command(command):
     return None
 
 
+def interpret_line(line):
+    tokens = line.split()
+
+    if len(tokens) == 0:
+        return
+
+    command = tokens[0]
+    args = tokens[1:]
+
+    if command in BUILTIN_COMMAND_FUNC_MAPPING:
+        func = BUILTIN_COMMAND_FUNC_MAPPING[command]
+        func(args)
+    else:
+        command_path = find_command(command)
+
+        if command_path is None:
+            # コマンドが見つかりませんでした。と標準エラー出力に出力
+            print(f"{command}: command not found", file=sys.stderr)
+            return
+
+        # 子プロセスの作成
+        pid = os.fork()
+
+        if pid == 0:
+            # /usr/bin/catであればcatの部分を取り出す
+            command_basename = os.path.basename(command_path)
+            os.execve(command_path, [command_basename] + args, os.environ)
+        else:
+            os.waitpid(pid, 0)
+
+
 def sigint_hander(signum, frame):
     pass
 
 
 def main():
-    signal.signal(signal.SIGINT, sigint_hander)
+    if len(sys.argv) >= 2:
+        file_name = sys.argv[1]
+    else:
+        file_name = None
 
-    while True:
-        line = input("> ")
-        tokens = line.split()
+    if file_name is None:
+        # インタラクティブシェルの場合
+        signal.signal(signal.SIGINT, sigint_hander)
 
-        if len(tokens) == 0:
-            continue
+        while True:
+            line = input("> ")
+            interpret_line(line)
 
-        command = tokens[0]
-        args = tokens[1:]
-
-        if command in BUILTIN_COMMAND_FUNC_MAPPING:
-            func = BUILTIN_COMMAND_FUNC_MAPPING[command]
-            func(args)
-        else:
-            command_path = find_command(command)
-
-            if command_path is None:
-                # コマンドが見つかりませんでした。と標準エラー出力に出力
-                print(f"{command}: command not found", file=sys.stderr)
-                continue
-
-            # 子プロセスの作成
-            pid = os.fork()
-
-            if pid == 0:
-                # /usr/bin/catであればcatの部分を取り出す
-                command_basename = os.path.basename(command_path)
-                os.execve(command_path, [command_basename] + args, os.environ)
-            else:
-                os.waitpid(pid, 0)
+    else:
+        # シェルスクリプトの場合
+        with open(file_name) as f:
+            for line in f:
+                interpret_line(line)
 
 
 if __name__ == "__main__":
