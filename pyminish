@@ -13,9 +13,18 @@ def builtin_exit(args):
     exit()
 
 
+# \033 = ANSIエスケープシーケンスの始まりを示す
+# \033[H　>> カーソルを画面の先頭に移動するエスケープシーケンス
+# \033[2J >> 画面をクリアするエスケープシーケンス
+# \033[3J >> 画面をクリアしてスクロールバッファもクリアするエスケープシーケンス
+def builtin_clear(args):
+    print("\033[H\033[2J\033[3J")
+
+
 BUILTIN_COMMAND_FUNC_MAPPING = {
     "echo": builtin_echo,
     "exit": builtin_exit,
+    "clear": builtin_clear,
 }
 
 
