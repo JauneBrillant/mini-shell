@@ -50,8 +50,16 @@ def run_command(tokens, stdin_fd=None, stdout_fd=None):
 
     if command in BUILTIN_COMMAND_FUNC_MAPPING:
         # 内部コマンド
+        default_stdin_dup_fd = os.dup(sys.stdin.fileno())
+        default_stdout_dup_fd = os.dup(sys.stdout.fileno())
+        set_stdio(stdin_fd, stdout_fd)
+
         func = BUILTIN_COMMAND_FUNC_MAPPING[command]
         func(args)
+
+        set_stdio(default_stdin_dup_fd, default_stdout_dup_fd)
+        os.close(default_stdin_dup_fd)
+        os.close(default_stdout_dup_fd)
     else:
         # 外部コマンド
         command_path = find_command(command)
@@ -101,12 +109,21 @@ def interpret_line(line):
         os.close(stdout_fd)
 
     elif pipe_count == 1:
-        # TODO パイプを実装
-        pass
+        pipe_index = tokens.index("|")
+        command_and_args1 = tokens[:pipe_index]
+        command_and_args2 = tokens[pipe_index + 1 :]
+
+        # 読み込み側のファイルディスクリプタと書き込み側のファイルディスクリプタを設定
+        pipe_r, pipe_w = os.pipe()
+
+        # 本来は並列実行するが、簡易的に順次実行
+        run_command(command_and_args1, stdout_fd=pipe_w)
+        os.close(pipe_w)
+        run_command(command_and_args2, stdin_fd=pipe_r)
+        os.close(pipe_r)
+
     else:
         run_command(tokens)
-
-    run_command(tokens)
 
 
 def sigint_hander(signum, frame):
